@@ -14,10 +14,12 @@ import java.net.URI;
 import java.util.concurrent.Executor;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -77,6 +79,24 @@ public class TestParseLiveQueryClient {
         webSocketClientCallback.onMessage(createUnsubscribedMessage(subscriptionHandling.getRequestId()).toString());
 
         verify(unsubscribeMockCallback, times(1)).onUnsubscribe(parseQuery);
+    }
+
+    @Test
+    public void testErrorWhenSubscribing() throws Exception {
+        ParseQuery<ParseObject> parseQuery = new ParseQuery<>("test")
+                .whereEqualTo("key", ParseObject.createWithoutData("SomeParseClass", "Abcdefg1234"));
+        SubscriptionHandling.HandleSubscribeCallback<ParseObject> subscribeMockCallback = mock(SubscriptionHandling.HandleSubscribeCallback.class);
+        SubscriptionHandling<ParseObject> subscriptionHandling = parseLiveQueryClient.subscribe(parseQuery).handleSubscribe(subscribeMockCallback);
+
+        SubscriptionHandling.HandleErrorCallback<ParseObject> errorMockCallback = mock(SubscriptionHandling.HandleErrorCallback.class);
+        subscriptionHandling.handleError(errorMockCallback);
+
+        verify(subscribeMockCallback, never()).onSubscribe(eq(parseQuery));
+        ArgumentCaptor<LiveQueryException> errorCaptor = ArgumentCaptor.forClass(LiveQueryException.class);
+        verify(errorMockCallback, times(1)).onError(eq(parseQuery), errorCaptor.capture());
+
+        LiveQueryException genericError = errorCaptor.getValue();
+        assertNotNull(genericError);
     }
 
     @Test
