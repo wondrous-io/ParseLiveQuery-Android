@@ -7,17 +7,25 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.robolectric.RobolectricGradleTestRunner;
 import org.robolectric.annotation.Config;
 
 import java.net.URI;
 import java.util.concurrent.Executor;
 
+import bolts.Task;
+
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
+import static org.mockito.AdditionalMatchers.and;
+import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,10 +40,23 @@ public class TestParseLiveQueryClient {
     private WebSocketClient webSocketClient;
     private WebSocketClient.WebSocketClientCallback webSocketClientCallback;
     private ParseLiveQueryClient<ParseObject> parseLiveQueryClient;
+    private ParseUser mockUser;
 
     @Before
     public void setUp() throws Exception {
         ParsePlugins.initialize("1234", "1234");
+
+        // Register a mock currentUserController to make getCurrentUser work
+        mockUser = mock(ParseUser.class);
+        ParseCurrentUserController currentUserController = mock(ParseCurrentUserController.class);
+        when(currentUserController.getAsync(anyBoolean())).thenAnswer(new Answer<Task<ParseUser>>() {
+            @Override
+            public Task<ParseUser> answer(InvocationOnMock invocation) throws Throwable {
+                return Task.forResult(mockUser);
+            }
+        });
+        ParseCorePlugins.getInstance().registerCurrentUserController(currentUserController);
+
         parseLiveQueryClient = ParseLiveQueryClient.Factory.getClient(new URI(""), new WebSocketClientFactory() {
             @Override
             public WebSocketClient createInstance(WebSocketClient.WebSocketClientCallback webSocketClientCallback, URI hostUrl) {
@@ -269,6 +290,42 @@ public class TestParseLiveQueryClient {
         reconnect();
 
         verify(webSocketClient, times(2)).send(any(String.class));
+    }
+
+    @Test
+    public void testSessionTokenSentOnConnect() {
+        when(mockUser.getSessionToken()).thenReturn("the token");
+        parseLiveQueryClient.reconnect();
+        webSocketClientCallback.onOpen();
+        verify(webSocketClient, times(1)).send(contains("\"sessionToken\":\"the token\""));
+    }
+
+    @Test
+    public void testEmptySessionTokenOnConnect() {
+        parseLiveQueryClient.reconnect();
+        webSocketClientCallback.onOpen();
+        verify(webSocketClient, times(1)).send(not(contains("\"sessionToken\":")));
+    }
+
+    @Test
+    public void testSessionTokenSentOnSubscribe() {
+        when(mockUser.getSessionToken()).thenReturn("the token");
+        when(webSocketClient.getState()).thenReturn(WebSocketClient.State.CONNECTED);
+        parseLiveQueryClient.subscribe(ParseQuery.getQuery("Test"));
+        verify(webSocketClient, times(1)).send(and(
+                contains("\"op\":\"subscribe\""),
+                contains("\"sessionToken\":\"the token\"")));
+    }
+
+    @Test
+    public void testEmptySessionTokenOnSubscribe() {
+        when(mockUser.getSessionToken()).thenReturn("the token");
+        when(webSocketClient.getState()).thenReturn(WebSocketClient.State.CONNECTED);
+        parseLiveQueryClient.subscribe(ParseQuery.getQuery("Test"));
+        verify(webSocketClient, times(1)).send(contains("\"op\":\"connect\""));
+        verify(webSocketClient, times(1)).send(and(
+                contains("\"op\":\"subscribe\""),
+                contains("\"sessionToken\":\"the token\"")));
     }
 
 
