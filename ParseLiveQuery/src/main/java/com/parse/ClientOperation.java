@@ -7,4 +7,7 @@ import org.json.JSONObject;
 
      abstract JSONObject getJSONObjectRepresentation() throws JSONException;
 
+     protected JSONObject filterObjectTo(JSONObject object, String... keys) throws JSONException {
+          return new JSONObject(object, keys);
+     }
 }

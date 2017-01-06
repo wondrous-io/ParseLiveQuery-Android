@@ -20,6 +20,8 @@ import org.json.JSONObject;
         jsonObject.put("requestId", requestId);
 
         JSONObject queryJsonObject = state.toJSON(PointerEncoder.get());
+        // See parse-server's LiveQuery/RequestSchema
+        queryJsonObject = filterObjectTo(queryJsonObject, "className", "where", "fields");
 
         jsonObject.put("query", queryJsonObject);
 
