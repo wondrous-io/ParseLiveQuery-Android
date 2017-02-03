@@ -55,6 +55,12 @@ public class TestParseLiveQueryClient {
                 return Task.forResult(mockUser);
             }
         });
+        when(currentUserController.getCurrentSessionTokenAsync()).thenAnswer(new Answer<Task<String>>() {
+            @Override
+            public Task<String> answer(InvocationOnMock invocation) throws Throwable {
+                return Task.forResult(mockUser.getSessionToken());
+            }
+        });
         ParseCorePlugins.getInstance().registerCurrentUserController(currentUserController);
 
         parseLiveQueryClient = ParseLiveQueryClient.Factory.getClient(new URI(""), new WebSocketClientFactory() {
@@ -217,7 +223,6 @@ public class TestParseLiveQueryClient {
         validateSameObject(eventMockCallback, parseQuery, parseObject);
     }
 
-
     @Test
     public void testDeleteEventWhenSubscribedToCallback() throws Exception {
         ParseQuery<ParseObject> parseQuery = new ParseQuery<>("test");
@@ -328,7 +333,6 @@ public class TestParseLiveQueryClient {
                 contains("\"sessionToken\":\"the token\"")));
     }
 
-
     private SubscriptionHandling<ParseObject> createSubscription(ParseQuery<ParseObject> parseQuery, SubscriptionHandling.HandleSubscribeCallback<ParseObject> subscribeMockCallback) throws Exception {
         SubscriptionHandling<ParseObject> subscriptionHandling = parseLiveQueryClient.subscribe(parseQuery).handleSubscribe(subscribeMockCallback);
         webSocketClientCallback.onMessage(createSubscribedMessage(subscriptionHandling.getRequestId()).toString());
@@ -424,5 +428,4 @@ public class TestParseLiveQueryClient {
         jsonObject.put("object", PointerEncoder.get().encodeRelatedObject(parseObject));
         return jsonObject;
     }
-
 }

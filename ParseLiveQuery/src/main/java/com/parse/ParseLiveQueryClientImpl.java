@@ -1,6 +1,5 @@
 package com.parse;
 
-
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -182,7 +181,6 @@ import static com.parse.Parse.checkInit;
         } catch (JSONException e) {
             throw new LiveQueryException.InvalidResponseException(message);
         }
-
     }
 
     private void handleSubscribedEvent(JSONObject jsonObject) throws JSONException {
@@ -227,19 +225,11 @@ import static com.parse.Parse.checkInit;
     }
 
     private void sendSubscription(final Subscription<T> subscription) {
-        String sessionToken = ParseUser.getCurrentSessionToken();
-        SubscribeClientOperation<T> op = new SubscribeClientOperation<>(subscription.getRequestId(), subscription.getQueryState(), sessionToken);
-        // dispatch errors
-        sendOperationAsync(op).continueWith(new Continuation<Void, Void>() {
-            public Void then(Task<Void> task) {
-                Exception error = task.getError();
-                if (error != null) {
-                    if (error instanceof RuntimeException) {
-                        subscription.didEncounter(new LiveQueryException.UnknownException(
-                                "Error when subscribing", (RuntimeException) error), subscription.getQuery());
-                    }
-                }
-                return null;
+        ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
+            @Override
+            public Task<Void> then(Task<String> task) throws Exception {
+                String sessionToken = task.getResult();
+                return sendOperationAsync(new SubscribeClientOperation<>(subscription.getRequestId(), subscription.getQueryState(), sessionToken));
             }
         });
     }
@@ -253,8 +243,13 @@ import static com.parse.Parse.checkInit;
             @Override
             public void onOpen() {
                 Log.v(LOG_TAG, "Socket opened");
-                String sessionToken = ParseUser.getCurrentSessionToken();
-                sendOperationAsync(new ConnectClientOperation(applicationId, sessionToken)).continueWith(new Continuation<Void, Void>() {
+                ParseUser.getCurrentSessionTokenAsync().onSuccessTask(new Continuation<String, Task<Void>>() {
+                    @Override
+                    public Task<Void> then(Task<String> task) throws Exception {
+                        String sessionToken = task.getResult();
+                        return sendOperationAsync(new ConnectClientOperation(applicationId, sessionToken));
+                    }
+                }).continueWith(new Continuation<Void, Void>() {
                     public Void then(Task<Void> task) {
                         Exception error = task.getError();
                         if (error != null) {
@@ -295,5 +290,4 @@ import static com.parse.Parse.checkInit;
             }
         };
     }
-
 }
